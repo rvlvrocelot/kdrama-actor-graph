@@ -41,9 +41,9 @@ class parseWiki():
 
 if __name__ == '__main__':
 
-parser = parseWiki()
-parser.processDrama('A Tale of Two Sisters')
-parser.processDrama('Can We Love Again?')
+    parser = parseWiki()
+    parser.processDrama('A Tale of Two Sisters')
+    parser.processDrama('Can We Love Again?')
 
-print parser.getCast('Can We Love Again?')
+    print parser.getCast('Can We Love Again?')
 
