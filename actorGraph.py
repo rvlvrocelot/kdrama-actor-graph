@@ -28,6 +28,16 @@ class ParseWiki():
             if iter.string: tags += unicode(iter)
             iter = iter.next
         return tags       
+
+       def _processCast(self,html,name):
+        castSubSet = self._getBetween(html,'Cast')
+        soup = BeautifulSoup(castSubSet)
+        self.rawData[name.replace('_','')]['cast'] =  [x.get('title') for x in soup.find_all('a')]
+        
+    def _processSynopsis(self,html,name):
+        synopsisSubSet = self._getBetween(html,'Synopsis')
+        soup = BeautifulSoup(synopsisSubSet)
+        self.rawData[name.replace('_','')]['synopsis'] = soup.find_all('p',text=True)[0].contents[0]
         
         
     def processDrama(self,dramaName):
@@ -39,9 +49,8 @@ class ParseWiki():
             self.rawData[name.replace('_','')] = {}
         
         #process cast
-        castSubSet = self._getBetween(html,'Cast')
-        soup = BeautifulSoup(castSubSet)
-        self.rawData[name.replace('_','')]['cast'] =  [x.get('title') for x in soup.find_all('a')]
+        self._processCast(html,name)
+        self._processSynopsis(html,name)
         
     def getCast(self,dramaName):
         return self.rawData[dramaName.replace(' ','')]['cast']
@@ -69,7 +78,7 @@ if __name__ == '__main__':
 
     parser.drop()
 
-    parser.save('Bad Couple')
+    #parser.save('Bad Couple')
 
     parser.recover()
 
