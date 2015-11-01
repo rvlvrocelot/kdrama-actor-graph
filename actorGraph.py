@@ -6,8 +6,6 @@ from pymongo import MongoClient
 class ParseWiki():
     
     rawData = {}
-    client = MongoClient()
-    drama = client.db.drama
     
     def __init__(self):
         pass
@@ -47,8 +45,16 @@ class ParseWiki():
             self.rawData[name.replace('_','')]['cast'] = []
             return 0
         
-        soup = BeautifulSoup(html)
-        self.rawData[name.replace('_','')]['cast'] =  set([x.get('title') for x in soup.find_all('a')])
+        soup = BeautifulSoup(castSubSet)
+        rawCast = [x.get('title') for x in soup.find_all('a')]
+        for i,cast in enumerate(rawCast):
+            if cast:
+                if '(' in cast:
+                    rawCast[i] = rawCast[i][0:cast.index('(') -1]
+                
+        rawCast = set(rawCast)
+        
+        self.rawData[name.replace('_','')]['cast'] =  rawCast
         
     def _processSynopsis(self,html,name):
         
@@ -66,13 +72,22 @@ class ParseWiki():
             
     def _processStartDate(self,html,name):
         
+        monthList = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         detailsSubset = self._getBetween(html,'Details')
         soup = BeautifulSoup(detailsSubset)
         raw =  [s.get_text() for s in soup.findAll('li') if 'period' in s.get_text()]
         if raw:
-            self.rawData[name.replace('_','')]['synopsis'] = raw[0][18:30]
+            year = raw[0][18:30][0:4]
+            month = int(monthList.index(raw[0][18:30][5:8])) + 1
+            if month < 10:
+                month = '0' + str(month)
+            day = raw[0][18:30][9:11]
+                        
+            finalString = year + str(month) + day
+            
+            self.rawData[name.replace('_','')]['startDate'] = finalString
         else:
-            self.rawData[name.replace('_','')]['synopsis'] = []
+            self.rawData[name.replace('_','')]['startDate'] = []
             
     def _processGenre(self,html,name):
         
@@ -80,16 +95,23 @@ class ParseWiki():
         soup = BeautifulSoup(detailsSubset)
         raw =  [s.get_text() for s in soup.findAll('li') if 'Genre' in s.get_text()]
         if raw:
-            self.rawData[name.replace('_','')]['genre'] = raw[0]
+            self.rawData[name.replace('_','')]['genre'] = raw[0].split()[1:]
         else:
             self.rawData[name.replace('_','')]['genre'] = []
             
     def _processImage(self,html,name):
         
         soup = BeautifulSoup(html)
-        imageUrl = "http://wiki.d-addicts.com/" +  [x['src'] for x in soup.findAll('img')][0]
+        if soup.findAll('img'):
+            imageUrl = "http://wiki.d-addicts.com/" +  [x['src'] for x in soup.findAll('img')][0]
+        else:
+            imageUrl = ""
         self.rawData[name.replace('_','')]['image'] = imageUrl
-        print imageUrl
+        
+    def _processName(self,name):
+        
+        self.rawData[name.replace('_','')]['name'] = name
+        
 
     def processDrama(self,dramaName):
         
@@ -105,31 +127,101 @@ class ParseWiki():
         self._processStartDate(html,name)
         self._processGenre(html,name)
         self._processImage(html,name)
+        self._processName(name)
         
         
     def getCast(self,dramaName):
         return self.rawData[dramaName.replace(' ','')]['cast']
     
     def getSynopsis(self,dramaName):
+        if not self.rawData[dramaName.replace(' ','')]['synopsis']:
+            return "Synopsis not found"
         return self.rawData[dramaName.replace(' ','')]['synopsis']
     
-    def save(self,dramaName):
-        name = dramaName.replace(' ','')
-        entry =  self.rawData[name]
-        entry['name'] = name
-        return self.drama.insert_one(entry).inserted_id
+    def getName(self,dramaName):
+        return self.rawData[dramaName.replace(' ','')]['name']
     
-    def recover(self):
-        for x in self.drama.find():
-            print x
+    def getStartDate(self,dramaName):
+        if not self.rawData[dramaName.replace(' ','')]['startDate']:
+            return "Start date not found"
+        return self.rawData[dramaName.replace(' ','')]['startDate']
     
-    def drop(self):
-        self.drama.drop()
+    def getImage(self, dramaName):
+        if not self.rawData[dramaName.replace(' ','')]['image']:
+            return "image not found"
+        return self.rawData[dramaName.replace(' ','')]['image']
+    
+    def getGenre(self,dramaName):
+        if not self.rawData[dramaName.replace(' ','')]['genre']:
+            return ["NoGenre"]
+        return self.rawData[dramaName.replace(' ','')]['genre']
+    
+    def initializeDB(self):
+        conn = sqlite3.connect('kdramaData.db')
+        c = conn.cursor()
         
+        c.execute('''Drop TABLE drama''')
+        c.execute('''Drop TABLE cast''')
+        c.execute('''Drop TABLE genre''')
+        
+        c.execute('''CREATE TABLE drama
+             (ID INTEGER PRIMARY KEY AUTOINCREMENT, name text, synopsis text, startDate int, image text)''')
 
+        c.execute('''CREATE TABLE cast
+             (dramaID INT, castName text)''')
+
+        c.execute('''CREATE TABLE genre
+             (dramaID INT, genreName text)''')
+
+        conn.commit()
+        conn.close()
+    
+    def insertDB(self,dramaName):
+        conn = sqlite3.connect('kdramaData.db')
+        conn.text_factory = str
+        c = conn.cursor()
+        
+        
+        #print self.getName(dramaName),self.getSynopsis(dramaName),self.getImage(dramaName), self.getStartDate(dramaName)
+        c.execute('''
+        
+        INSERT INTO drama (name,synopsis, image, startDate )
+        VALUES (?,?,?,?) 
+        
+        ''',(self.getName(dramaName),self.getSynopsis(dramaName),self.getImage(dramaName), self.getStartDate(dramaName) ))
+        
+        conn.commit()
+        
+        dramaIndex = c.execute(''' SELECT last_insert_rowid() ''').fetchall()[0][0]
+        
+        for cast in self.getCast(dramaName):
+            c.execute('''
+        
+                INSERT INTO cast (dramaID,castName )
+                VALUES (?,?) 
+        
+        ''',(dramaIndex,cast))
+            conn.commit()
+            
+        #print self.getGenre(dramaName)     
+        if len(self.getGenre(dramaName)) > 0:
+            for genre in self.getGenre(dramaName):
+                c.execute('''
+
+                    INSERT INTO genre (dramaID,genreName )
+                    VALUES (?,?) 
+
+            ''',(dramaIndex,genre))
+                conn.commit()
+        
+        conn.close()
+        
 if __name__ == '__main__':
-
+    
     parser = ParseWiki()
+    
+    parser.initializeDB()
+    
     def getDramaList(year):
             html = parser._download("http://wiki.d-addicts.com/List_of_Dramas_aired_in_Korea_by_Network_in_" + str(year))
             soup = BeautifulSoup(html)
@@ -144,15 +236,8 @@ if __name__ == '__main__':
                 
             return finalList
 
-    dramaList = getDramaList(2014)
+    dramaList = getDramaList(2015)
     for drama in dramaList:
         print drama
         parser.processDrama(drama)
-
-
-    parser.drop()
-
-    #parser.save('Bad Couple')
-
-    parser.recover()
-
+        parser.insertDB(drama)
