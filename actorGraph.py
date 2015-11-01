@@ -13,8 +13,12 @@ class ParseWiki():
         pass
     
     def _download(self,url):
-        response = urllib2.urlopen(url)
-        html = response.read()
+        try: 
+            response = urllib2.urlopen(url)
+            html = response.read()
+        except:
+            html = ""
+        
         return html
     
     def _getBetween(self,htmlString,firstTag):
@@ -60,7 +64,33 @@ class ParseWiki():
         except IndexError:
             self.rawData[name.replace('_','')]['synopsis'] = []
             
+    def _processStartDate(self,html,name):
         
+        detailsSubset = self._getBetween(html,'Details')
+        soup = BeautifulSoup(detailsSubset)
+        raw =  [s.get_text() for s in soup.findAll('li') if 'period' in s.get_text()]
+        if raw:
+            self.rawData[name.replace('_','')]['synopsis'] = raw[0][18:30]
+        else:
+            self.rawData[name.replace('_','')]['synopsis'] = []
+            
+    def _processGenre(self,html,name):
+        
+        detailsSubset = self._getBetween(html,'Details')
+        soup = BeautifulSoup(detailsSubset)
+        raw =  [s.get_text() for s in soup.findAll('li') if 'Genre' in s.get_text()]
+        if raw:
+            self.rawData[name.replace('_','')]['genre'] = raw[0]
+        else:
+            self.rawData[name.replace('_','')]['genre'] = []
+            
+    def _processImage(self,html,name):
+        
+        soup = BeautifulSoup(html)
+        imageUrl = "http://wiki.d-addicts.com/" +  [x['src'] for x in soup.findAll('img')][0]
+        self.rawData[name.replace('_','')]['image'] = imageUrl
+        print imageUrl
+
     def processDrama(self,dramaName):
         
         name  = dramaName.replace(' ','_')
@@ -72,6 +102,9 @@ class ParseWiki():
         #process cast
         self._processCast(html,name)
         self._processSynopsis(html,name)
+        self._processStartDate(html,name)
+        self._processGenre(html,name)
+        self._processImage(html,name)
         
         
     def getCast(self,dramaName):
