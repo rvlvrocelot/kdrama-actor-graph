@@ -75,7 +75,7 @@ class ParseWiki():
         monthList = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         detailsSubset = self._getBetween(html,'Details')
         soup = BeautifulSoup(detailsSubset)
-        raw =  [s.get_text() for s in soup.findAll('li') if 'period' in s.get_text()]
+        raw =  [s.get_text() for s in soup.findAll('li') if 'Broadcast period' in s.get_text()]
         if raw:
             year = raw[0][18:30][0:4]
             month = int(monthList.index(raw[0][18:30][5:8])) + 1
@@ -139,7 +139,7 @@ class ParseWiki():
         return self.rawData[dramaName.replace(' ','')]['synopsis']
     
     def getName(self,dramaName):
-        return self.rawData[dramaName.replace(' ','')]['name']
+        return self.rawData[dramaName.replace(' ','')]['name'].replace("_"," ")
     
     def getStartDate(self,dramaName):
         if not self.rawData[dramaName.replace(' ','')]['startDate']:
@@ -206,12 +206,13 @@ class ParseWiki():
         #print self.getGenre(dramaName)     
         if len(self.getGenre(dramaName)) > 0:
             for genre in self.getGenre(dramaName):
+                lowerGenre = genre.lower()
                 c.execute('''
 
                     INSERT INTO genre (dramaID,genreName )
                     VALUES (?,?) 
 
-            ''',(dramaIndex,genre))
+            ''',(dramaIndex,lowerGenre))
                 conn.commit()
         
         conn.close()
@@ -236,8 +237,12 @@ if __name__ == '__main__':
                 
             return finalList
 
-    dramaList = getDramaList(2015)
+    dramaList2015 = getDramaList(2015)
+    dramaList2014 = getDramaList(2014)
+    dramaList2013 = getDramaList(2013)
+    dramaList = set(dramaList2015+dramaList2014+dramaList2013)
     for drama in dramaList:
         print drama
         parser.processDrama(drama)
         parser.insertDB(drama)
+                           
